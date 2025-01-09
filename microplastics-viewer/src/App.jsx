@@ -85,7 +85,7 @@ function App() {
       <>
         <BackgroundParticles /> {/* Optional: Animated Background */}
         <Navigation />
-        <div className="pt-16"> {/* Padding top to avoid content under fixed nav */}
+        <div className="pt-1"> {/* Padding top to avoid content under fixed nav */}
           <Routes>
             <Route
               path="/"
@@ -257,7 +257,7 @@ function App() {
                   </section>
 
                   {/* Time Lapse Section */}
-                  <section className="space-y-12">
+                  <section>
                     <TimeLapseMonthly />
                   </section>
                 </div>

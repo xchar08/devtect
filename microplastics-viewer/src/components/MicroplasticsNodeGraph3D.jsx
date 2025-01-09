@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import Papa from 'papaparse'
 import { ForceGraph3D } from 'react-force-graph'
-import * as THREE from 'three' // optional if you want custom materials
+import * as THREE from 'three'
 
 // 1) Approx bounding logic for major countries/regions
 function getClosestCountry(lat, lon) {
@@ -28,7 +28,6 @@ function getClosestCountry(lat, lon) {
 }
 
 // 2) Pre-chosen 3D centers for each region
-// If grouped, nodes get pinned to these (fx, fy, fz).
 const countryCenters = {
   "USA": [0, 0, 0],
   "Canada": [80, 60, 0],
@@ -91,7 +90,7 @@ function MicroplasticsNodeGraph3D() {
           }
         })
 
-        // Link each node to some random node in same country
+        // Link each node to some random node in the same country
         const links = []
         const countryMap = {}
         nodes.forEach(n => {
@@ -150,10 +149,10 @@ function MicroplasticsNodeGraph3D() {
   // --- 5) Node click => if grouped and not expanded, expand that node's country
   const handleNodeClick = (node) => {
     if (groupedByCountry) {
-      // If we already have an expandedCountry, and we click same => do nothing
+      // If we already have an expandedCountry, and we click the same => do nothing
       // Or if we click a different => expand that new one
       if (expandedCountry === node.country) {
-        // do nothing or reassemble?
+        // do nothing or further custom logic
       } else {
         setExpandedCountry(node.country)
       }
@@ -166,42 +165,64 @@ function MicroplasticsNodeGraph3D() {
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow mt-4">
-      <h2 className="text-xl font-semibold mb-2">3D Microplastics Node Graph by Country</h2>
-      <p className="text-sm text-gray-600 mb-2">
-        All rows are nodes, color-coded by country. Toggle "Group by Country" to pin nodes.
-        Click a node to "break off" that entire country's nodes. Press "Reassemble" to pin them again.
+    <div className="relative bg-gradient-to-br from-blue-50 to-green-50 p-6 rounded-lg shadow-lg mt-4">
+      <h2 className="text-xl font-semibold mb-2 text-gray-700">
+        3D Microplastics Node Graph by Country
+      </h2>
+      <p className="text-sm text-gray-500 mb-4">
+        All rows are nodes, color-coded by country. Toggle &quot;Group by Country&quot; to pin nodes.
+        Click a node to &quot;break off&quot; that entire country's nodes. Press &quot;Reassemble&quot; to pin them again.
       </p>
 
-      <div className="flex items-center space-x-3 mb-2">
+      <div className="flex items-center space-x-3 mb-4">
         <button
           onClick={() => setGroupedByCountry(g => !g)}
-          className="bg-blue-500 text-white px-3 py-1 rounded"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
         >
           {groupedByCountry ? "Ungroup" : "Group by Country"}
         </button>
         {groupedByCountry && expandedCountry && (
           <button
             onClick={handleReassemble}
-            className="bg-green-500 text-white px-3 py-1 rounded"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
           >
             Reassemble
           </button>
         )}
       </div>
 
-      <div className="border rounded" style={{ height: '600px' }}>
+      <div className="border border-gray-200 rounded-lg" style={{ height: '600px' }}>
         <ForceGraph3D
           graphData={graphData}
-          nodeLabel={node => 
-            `Country: ${node.country}\nLat: ${node.lat}, Lon: ${node.lon}\nPieces: ${node.pieces}`
-          }
+          //
+          // Use HTML in the nodeLabel to enforce black text on hover:
+          //
+          nodeLabel={node => `
+            <div style="color: black;">
+              <strong>Country:</strong> ${node.country}<br/>
+              <strong>Lat:</strong> ${node.lat}, 
+              <strong>Lon:</strong> ${node.lon}<br/>
+              <strong>Pieces:</strong> ${node.pieces}
+            </div>
+          `}
           nodeAutoColorBy="country"
           nodeVal={node => node.val}
-          linkDirectionalParticles={1}
-          linkDirectionalParticleSpeed={d => 0.002}
-          backgroundColor="#eeeeee"
+          // Increase nodeRelSize for bigger label sprites
+          nodeRelSize={6}
+          // Adjust link styles
+          linkWidth={1}
+          linkColor={() => '#999'}
+          linkDirectionalParticles={2}
+          linkDirectionalParticleSpeed={() => 0.002}
+          linkDirectionalParticleWidth={2}
+          linkDirectionalParticleColor={() => '#555'}
+          // Softer background color
+          backgroundColor="#f0f0f0"
+          // Camera and interaction settings
+          showNavInfo={true}
+          enableNodeDrag={true}
           onNodeClick={handleNodeClick}
+          cameraAutoFit={true}
         />
       </div>
     </div>
