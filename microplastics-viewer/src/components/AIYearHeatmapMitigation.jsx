@@ -4,34 +4,134 @@ import Papa from "papaparse";
 import * as tf from "@tensorflow/tfjs";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import MarkerClusterGroup from "@changey/react-leaflet-markercluster";
+import "@changey/react-leaflet-markercluster/dist/styles.min.css";
 import * as d3 from "d3-scale";
 import { interpolateYlOrRd } from "d3-scale-chromatic";
+import { ClipLoader } from "react-spinners";
 
-/**
- * AI + Year + Mitigation + Time Increment Heatmap with Model Saving and Performance Optimizations:
- * 1) Load a trained model from local storage to skip training.
- * 2) If no model exists, parse CSV, filter out -9999, train the model, then save it.
- * 3) Let user pick a year, time increment, & mitigation tactic.
- * 4) Generate predictions based on selections, apply mitigation, and display as individual CircleMarkers.
- */
+// Fix Leaflet's default icon paths
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+delete L.Icon.Default.prototype._getIconUrl;
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+// Define time increments as a constant outside the component
+const timeIncrements = [
+  { label: "6 Months", value: 0.5 },
+  { label: "1 Year", value: 1 },
+  { label: "2 Years", value: 2 },
+  { label: "5 Years", value: 5 },
+  { label: "10 Years", value: 10 },
+];
 
 // Mitigation Strategies
 const tactics = [
-  { label: "No Mitigation", value: "none" },
-  { label: "Coastal Cleanup (-20% near coasts)", value: "coastal" },
-  { label: "Open Ocean Skimming (-30% offshore)", value: "openocean" },
-  { label: "Global Single-Use Ban (-50% overall)", value: "globalban" },
-  { label: "River Interceptors (-40% lat in -10..10)", value: "river" },
-];
-
-// Time Increments (in years)
-const timeIncrements = [
-  { label: "After 1 Month", value: 1 / 12 },
-  { label: "After 2 Months", value: 2 / 12 },
-  { label: "After 3 Months", value: 3 / 12 },
-  { label: "After 6 Months", value: 6 / 12 },
-  { label: "After 9 Months", value: 9 / 12 },
-  { label: "After 1 Year", value: 1 },
+  { 
+    label: "No Mitigation", 
+    value: "none", 
+    description: "No actions taken to reduce microplastics.", 
+    type: "none", 
+    rate: 0,
+    applies: () => true // Always applies
+  },
+  { 
+    label: "Coastal Cleanup (-20% near coasts)", 
+    value: "coastal", 
+    description: "Reduces microplastics by 20% near coastal regions.", 
+    type: "perYear", 
+    rate: 0.2,
+    applies: (lat, lon) => Math.abs(lat) < 15 || Math.abs(lon) < 15
+  },
+  { 
+    label: "Open Ocean Skimming (-30% offshore)", 
+    value: "openocean", 
+    description: "Reduces microplastics by 30% in open ocean areas.", 
+    type: "perYear", 
+    rate: 0.3,
+    applies: (lat, lon) => Math.abs(lat) >= 15 && Math.abs(lon) >= 15
+  },
+  { 
+    label: "Global Single-Use Ban (-50% overall)", 
+    value: "globalban", 
+    description: "Reduces microplastics by 50% globally.", 
+    type: "oneTime", 
+    rate: 0.5,
+    applies: () => true
+  },
+  { 
+    label: "River Interceptors (-40% if lat in -10..10)", 
+    value: "river", 
+    description: "Reduces microplastics by 40% in regions near rivers.", 
+    type: "perYear", 
+    rate: 0.4,
+    applies: (lat, lon) => lat >= -10 && lat <= 10
+  },
+  // Additional Mitigation Strategies
+  { 
+    label: "Biodegradable Plastics Promotion (-25% overall)", 
+    value: "biodegradable", 
+    description: "Encourages the use of biodegradable plastics, reducing microplastics by 25% globally.", 
+    type: "oneTime", 
+    rate: 0.25,
+    applies: () => true
+  },
+  { 
+    label: "Industrial Filtration Systems (-35% near industrial areas)", 
+    value: "industrial", 
+    description: "Implements filtration systems in industrial zones, reducing microplastics by 35% in these areas.", 
+    type: "perYear", 
+    rate: 0.35,
+    applies: (lat, lon) => Math.abs(lat) < 30 && Math.abs(lon) < 30
+  },
+  { 
+    label: "Public Awareness Campaigns (-15% overall)", 
+    value: "awareness", 
+    description: "Increases public awareness leading to a 15% reduction in microplastics globally.", 
+    type: "oneTime", 
+    rate: 0.15,
+    applies: () => true
+  },
+  { 
+    label: "Advanced Waste Management (-40% in urban areas)", 
+    value: "wastemanagement", 
+    description: "Enhances waste management practices in urban regions, reducing microplastics by 40% in these areas.", 
+    type: "perYear", 
+    rate: 0.4,
+    applies: (lat, lon) => Math.abs(lat) <= 45 && Math.abs(lon) <= 45
+  },
+  { 
+    label: "Legislation on Plastic Production (-30% globally)", 
+    value: "legislation", 
+    description: "Imposes strict regulations on plastic production, reducing microplastics by 30% globally.", 
+    type: "oneTime", 
+    rate: 0.3,
+    applies: () => true
+  },
+  { 
+    label: "Ocean Restoration Projects (-20% globally)", 
+    value: "oceanrestoration", 
+    description: "Undertakes ocean restoration projects, reducing microplastics by 20% globally.", 
+    type: "oneTime", 
+    rate: 0.2,
+    applies: () => true
+  },
+  { 
+    label: "Erosion Control Measures (-25% in vulnerable areas)", 
+    value: "erosioncontrol", 
+    description: "Implements erosion control measures in vulnerable areas, reducing microplastics by 25%.", 
+    type: "perYear", 
+    rate: 0.25,
+    applies: (lat, lon) => lat >= -20 && lat <= 20
+  },
 ];
 
 function AIYearHeatmapMitigation() {
@@ -261,7 +361,7 @@ function AIYearHeatmapMitigation() {
       loss: "meanSquaredError",
     });
 
-    setTrainingStatus("Training model (this may take a moment)...");
+    setTrainingStatus("Training model...");
 
     try {
       await newModel.fit(xs, ys, {
@@ -275,10 +375,19 @@ function AIYearHeatmapMitigation() {
             setTrainingStatus(`Training model... Epoch ${epoch + 1}/30`);
             console.log(`Epoch ${epoch + 1}/30 completed`);
           },
-          onTrainEnd: () => {
+          onTrainEnd: async () => {
             setIsTraining(false);
             setTrainingProgress(100);
             setTrainingStatus("Training complete. Model saved. Select year, time increment, & tactic to see predictions.");
+            // Save model to local storage
+            try {
+              await newModel.save("localstorage://microplastics-model");
+              console.log("Model saved to local storage!");
+            } catch (error) {
+              console.error("Error saving model:", error);
+              setTrainingStatus("Error saving the model. Check console for details.");
+            }
+            setModel(newModel);
           },
           onError: (error) => {
             console.error("Training error:", error);
@@ -296,16 +405,6 @@ function AIYearHeatmapMitigation() {
     xs.dispose();
     ys.dispose();
 
-    // Save model to local storage
-    try {
-      await newModel.save("localstorage://microplastics-model");
-      console.log("Model saved to local storage!");
-    } catch (error) {
-      console.error("Error saving model:", error);
-      setTrainingStatus("Error saving the model. Check console for details.");
-    }
-
-    setModel(newModel);
     setYears(uniqueYears);
 
     if (uniqueYears.includes(2025)) {
@@ -323,7 +422,7 @@ function AIYearHeatmapMitigation() {
   }, [model, boundingBox, selectedYear, timeIncrement, tactic]);
 
   async function generatePredictions(mlModel, box, year, timeInc, tacticVal) {
-    setTrainingStatus(`Generating predictions for year ${year} + ${Math.round(timeInc * 12)} months with tactic '${tacticVal}'...`);
+    setTrainingStatus(`Generating predictions for year ${year} + ${Math.round(timeInc * 12)} months with tactic '${getTacticLabel(tacticVal)}'...`);
     setIsPredicting(true);
     setPredictionProgress(0);
 
@@ -352,9 +451,9 @@ function AIYearHeatmapMitigation() {
       });
     });
 
-    // Calculate the number of months from timeIncrement (in years)
-    const months = Math.round(timeInc * 12);
-    console.log(`Time Increment: ${timeInc} years (${months} months)`);
+    // Calculate the number of full years from timeIncrement
+    const years = Math.floor(timeInc);
+    console.log(`Time Increment: ${timeInc} years (Full Years: ${years})`);
 
     try {
       const inputTensor = tf.tensor2d(inputArray, [inputArray.length, 3]);
@@ -369,10 +468,10 @@ function AIYearHeatmapMitigation() {
         const lat = inputArray[idx][0];
         const lon = inputArray[idx][1];
 
-        // Apply the chosen mitigation tactic with cumulative monthly reductions
-        val = applyMitigation(val, tacticVal, lat, lon, months);
+        // Apply the chosen mitigation tactic with the correct reduction logic
+        val = applyMitigationStrategy(val, tacticVal, lat, lon, years);
 
-        preds.push({ lat, lon, predValue: val });
+        preds.push({ lat, lon, predVal: val });
         if (val > tempMax) tempMax = val;
       });
 
@@ -381,7 +480,7 @@ function AIYearHeatmapMitigation() {
 
       setHeatmapData(preds);
       setMaxVal(tempMax);
-      setTrainingStatus(`AI heatmap for year ${year} + ${months} months with tactic '${tacticVal}' generated!`);
+      setTrainingStatus(`AI heatmap for year ${year} + ${Math.round(timeInc * 12)} months with tactic '${getTacticLabel(tacticVal)}' generated!`);
     } catch (error) {
       console.error("Prediction error:", error);
       setTrainingStatus("Error during prediction. Check console for details.");
@@ -390,47 +489,36 @@ function AIYearHeatmapMitigation() {
     setIsPredicting(false);
   }
 
-  // Mitigation Logic with Monthly Reductions
-  function applyMitigation(value, tacticVal, lat, lon, months) {
-    if (value <= 0) return 0;
+  // Mitigation Logic with Correct Reduction Application
+  function applyMitigationStrategy(value, tacticVal, lat, lon, years) {
+    const selectedTactic = tactics.find(t => t.value === tacticVal);
+    if (!selectedTactic) return value;
 
-    let reductionPercentage = 0;
+    // Check if the tactic applies to the given location
+    if (!selectedTactic.applies(lat, lon)) return value;
 
-    switch (tacticVal) {
-      case "coastal":
-        // 20% reduction per month near coasts (lat or lon within ±15 degrees)
-        if (Math.abs(lat) < 15 || Math.abs(lon) < 15) {
-          reductionPercentage = 0.2;
-        }
-        break;
-      case "openocean":
-        // 30% reduction per month offshore (lat and lon outside ±15 degrees)
-        if (Math.abs(lat) >= 15 && Math.abs(lon) >= 15) {
-          reductionPercentage = 0.3;
-        }
-        break;
-      case "globalban":
-        // 50% reduction per month overall
-        reductionPercentage = 0.5;
-        break;
-      case "river":
-        // 40% reduction per month if lat is between -10 and 10
-        if (lat >= -10 && lat <= 10) {
-          reductionPercentage = 0.4;
-        }
-        break;
-      case "none":
-      default:
-        reductionPercentage = 0;
-        break;
+    let finalValue = value;
+
+    if (selectedTactic.type === "perYear") {
+      // Use only full years for reductions
+      const fullYears = Math.floor(years);
+      finalValue = value * Math.pow(1 - selectedTactic.rate, fullYears);
+      console.log(`Applying per-year reduction: Original Value = ${value}, Rate = ${selectedTactic.rate}, Years = ${fullYears}, Final Value = ${finalValue}`);
+    } else if (selectedTactic.type === "oneTime") {
+      // One-time reduction: value * (1 - rate)
+      finalValue = value * (1 - selectedTactic.rate);
+      console.log(`Applying one-time reduction: Original Value = ${value}, Rate = ${selectedTactic.rate}, Final Value = ${finalValue}`);
     }
+    // 'none' type or unrecognized type returns the original value
 
-    if (reductionPercentage > 0 && months > 0) {
-      const cumulativeReductionFactor = Math.pow(1 - reductionPercentage, months);
-      return value * cumulativeReductionFactor;
-    }
+    // Ensure the value doesn't go below zero
+    return Math.max(finalValue, 0);
+  }
 
-    return value;
+  // Get Tactic Label by Value
+  function getTacticLabel(value) {
+    const tactic = tactics.find(t => t.value === value);
+    return tactic ? tactic.label : "Unknown";
   }
 
   // Define color scale using d3
@@ -442,18 +530,21 @@ function AIYearHeatmapMitigation() {
   }, [maxVal]);
 
   return (
-    <div className="bg-white p-6 rounded shadow mt-6">
-      <h2 className="text-2xl font-semibold mb-4">AI Year Heatmap + Mitigation</h2>
-      <p className="text-gray-600 mb-6">{trainingStatus}</p>
+    <div className="bg-white p-8 rounded shadow mt-6 max-w-6xl mx-auto">
+      <h2 className="text-3xl font-bold mb-4 text-blue-700">AI Year Heatmap + Mitigation Strategies</h2>
+      <p className="text-gray-600 mb-6">
+        Utilize our AI-driven models to predict future microplastic pollution scenarios based on various mitigation strategies. Select a year, time increment, and mitigation tactic to visualize the projected impacts.
+      </p>
 
       {/* Selection Controls */}
       <div className="flex flex-col md:flex-row md:items-center md:space-x-6 space-y-4 md:space-y-0 mb-8">
         {/* Year Dropdown */}
         {years.length > 0 && (
-          <div className="flex items-center space-x-2">
-            <label className="font-medium">Select Year:</label>
+          <div className="flex flex-col">
+            <label htmlFor="year" className="font-medium mb-1">Select Year:</label>
             <select
-              className="border border-gray-300 rounded p-2"
+              id="year"
+              className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedYear || ""}
               onChange={(e) => setSelectedYear(parseFloat(e.target.value))}
             >
@@ -467,10 +558,11 @@ function AIYearHeatmapMitigation() {
         )}
 
         {/* Time Increment Dropdown */}
-        <div className="flex items-center space-x-2">
-          <label className="font-medium">Time Increment:</label>
+        <div className="flex flex-col">
+          <label htmlFor="timeIncrement" className="font-medium mb-1">Time Increment:</label>
           <select
-            className="border border-gray-300 rounded p-2"
+            id="timeIncrement"
+            className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={timeIncrement}
             onChange={(e) => setTimeIncrement(parseFloat(e.target.value))}
           >
@@ -483,10 +575,11 @@ function AIYearHeatmapMitigation() {
         </div>
 
         {/* Mitigation Tactic Dropdown */}
-        <div className="flex items-center space-x-2">
-          <label className="font-medium">Mitigation Tactic:</label>
+        <div className="flex flex-col">
+          <label htmlFor="tactic" className="font-medium mb-1">Mitigation Tactic:</label>
           <select
-            className="border border-gray-300 rounded p-2"
+            id="tactic"
+            className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={tactic}
             onChange={(e) => setTactic(e.target.value)}
           >
@@ -503,36 +596,40 @@ function AIYearHeatmapMitigation() {
       <div className="space-y-6 mb-8">
         {/* Training Progress */}
         {isTraining && (
-          <div>
-            <p className="text-gray-700 mb-1">Training Progress:</p>
-            <div className="w-full bg-gray-200 rounded-full h-4">
-              <div
-                className="bg-blue-600 h-4 rounded-full"
-                style={{ width: `${trainingProgress}%` }}
-              ></div>
+          <div className="flex items-center space-x-4">
+            <ClipLoader color="#1d4ed8" size={30} />
+            <div>
+              <p className="text-gray-700">Training Progress: {trainingProgress}%</p>
+              <div className="w-full bg-gray-200 rounded-full h-4">
+                <div
+                  className="bg-blue-600 h-4 rounded-full"
+                  style={{ width: `${trainingProgress}%` }}
+                ></div>
+              </div>
             </div>
-            <p className="text-sm text-gray-700 mt-1">{trainingProgress}%</p>
           </div>
         )}
 
         {/* Prediction Progress */}
         {isPredicting && (
-          <div>
-            <p className="text-gray-700 mb-1">Prediction Progress:</p>
-            <div className="w-full bg-gray-200 rounded-full h-4">
-              <div
-                className="bg-green-600 h-4 rounded-full"
-                style={{ width: `${predictionProgress}%` }}
-              ></div>
+          <div className="flex items-center space-x-4">
+            <ClipLoader color="#16a34a" size={30} />
+            <div>
+              <p className="text-gray-700">Prediction Progress: {predictionProgress}%</p>
+              <div className="w-full bg-gray-200 rounded-full h-4">
+                <div
+                  className="bg-green-600 h-4 rounded-full"
+                  style={{ width: `${predictionProgress}%` }}
+                ></div>
+              </div>
             </div>
-            <p className="text-sm text-gray-700 mt-1">{predictionProgress}%</p>
           </div>
         )}
       </div>
 
       {/* Heatmap Display */}
       {model && boundingBox && heatmapData.length > 0 ? (
-        <div className="h-[500px] w-full">
+        <div className="h-[600px] w-full rounded-lg shadow-lg">
           <MapContainer
             center={[0, 0]}
             zoom={2}
@@ -546,44 +643,46 @@ function AIYearHeatmapMitigation() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               noWrap={true}
             />
-            {heatmapData.map((point, i) => {
-              const lat = point.lat;
-              const lon = point.lon;
-              const val = point.predValue;
-              if (val <= 0) return null;
+            <MarkerClusterGroup>
+              {heatmapData.map((point, i) => {
+                const lat = point.lat;
+                const lon = point.lon;
+                const val = point.predVal;
+                if (val <= 0) return null;
 
-              const color = colorScale(val);
-              return (
-                <CircleMarker
-                  key={i}
-                  center={[lat, lon]}
-                  radius={4}
-                  pathOptions={{
-                    color,
-                    fillColor: color,
-                    fillOpacity: 1,
-                  }}
-                >
-                  <Tooltip>
-                    <div>
-                      <strong>Lat:</strong> {lat}, <strong>Lon:</strong> {lon}
-                      <br />
-                      <strong>Year:</strong> {selectedYear}
-                      <br />
-                      <strong>Time Increment:</strong> {Math.round(timeIncrement * 12)} months
-                      <br />
-                      <strong>Mitigation:</strong> {tactic}
-                      <br />
-                      <strong>Predicted:</strong> {val.toFixed(1)}
-                    </div>
-                  </Tooltip>
-                </CircleMarker>
-              );
-            })}
+                const color = colorScale(val);
+                return (
+                  <CircleMarker
+                    key={i}
+                    center={[lat, lon]}
+                    radius={4}
+                    pathOptions={{
+                      color,
+                      fillColor: color,
+                      fillOpacity: 0.8,
+                    }}
+                  >
+                    <Tooltip>
+                      <div>
+                        <strong>Lat:</strong> {lat}, <strong>Lon:</strong> {lon}
+                        <br />
+                        <strong>Year:</strong> {selectedYear + Math.floor(timeIncrement)}
+                        <br />
+                        <strong>Mitigation:</strong> {getTacticLabel(tactic)}
+                        <br />
+                        <strong>Predicted:</strong> {val.toFixed(1)} pieces/km²
+                      </div>
+                    </Tooltip>
+                  </CircleMarker>
+                );
+              })}
+            </MarkerClusterGroup>
           </MapContainer>
         </div>
       ) : (
-        <p className="text-gray-700">Waiting for training/predictions...</p>
+        <div className="flex flex-col items-center justify-center h-[600px] w-full rounded-lg shadow-lg bg-gray-100">
+          <p className="text-gray-700">Waiting for training/predictions...</p>
+        </div>
       )}
     </div>
   );
