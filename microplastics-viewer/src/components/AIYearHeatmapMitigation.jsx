@@ -134,6 +134,10 @@ const tactics = [
   },
 ];
 
+// Define model version to manage different model architectures
+const MODEL_VERSION = "v2"; // Increment this when the model architecture changes
+const MODEL_URL = `localstorage://microplastics-model-${MODEL_VERSION}`;
+
 function AIYearHeatmapMitigation() {
   // Primary States
   const [trainingStatus, setTrainingStatus] = useState("Loading data...");
@@ -159,12 +163,22 @@ function AIYearHeatmapMitigation() {
   useEffect(() => {
     (async () => {
       try {
-        const loadedModel = await tf.loadLayersModel("localstorage://microplastics-model");
-        console.log("Model loaded from local storage!");
+        // Attempt to load the model
+        const loadedModel = await tf.loadLayersModel(MODEL_URL);
+        console.log(`Model loaded from local storage (${MODEL_URL})!`);
         setModel(loadedModel);
         parseCsv(false);
       } catch (err) {
-        console.log("No saved model found or error loading. Training now...");
+        console.log(`No saved model found at ${MODEL_URL} or error loading. Training now...`);
+        // If model loading fails, attempt to remove any existing older model
+        try {
+          const olderModelURL = `localstorage://microplastics-model-${MODEL_VERSION}`;
+          await tf.io.removeModel(olderModelURL);
+          console.log(`Existing model (${olderModelURL}) removed from local storage.`);
+        } catch (removeError) {
+          console.warn("No existing model to remove or error removing model:", removeError);
+        }
+        // Proceed to parse CSV and train a new model
         parseCsv(true);
       }
     })();
@@ -343,6 +357,8 @@ function AIYearHeatmapMitigation() {
     try {
       xs = tf.tensor2d(inputs, [inputs.length, 3]);
       ys = tf.tensor2d(labels, [labels.length, 1]);
+      console.log("Input tensor shape:", xs.shape);
+      console.log("Label tensor shape:", ys.shape);
     } catch (error) {
       console.error("Error creating tensors:", error);
       setTrainingStatus("Error processing data for training.");
@@ -379,10 +395,10 @@ function AIYearHeatmapMitigation() {
             setIsTraining(false);
             setTrainingProgress(100);
             setTrainingStatus("Training complete. Model saved. Select year, time increment, & tactic to see predictions.");
-            // Save model to local storage
+            // Save model to local storage with versioning
             try {
-              await newModel.save("localstorage://microplastics-model");
-              console.log("Model saved to local storage!");
+              await newModel.save(MODEL_URL);
+              console.log(`Model saved to local storage (${MODEL_URL})!`);
             } catch (error) {
               console.error("Error saving model:", error);
               setTrainingStatus("Error saving the model. Check console for details.");
@@ -457,6 +473,7 @@ function AIYearHeatmapMitigation() {
 
     try {
       const inputTensor = tf.tensor2d(inputArray, [inputArray.length, 3]);
+      console.log("Prediction input tensor shape:", inputTensor.shape);
       const outputTensor = mlModel.predict(inputTensor);
       const outputData = await outputTensor.array();
 
