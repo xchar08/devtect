@@ -3,7 +3,6 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Navigation from './components/Navigation';
 import Level3Map from './components/Level3Map';
-import Level3pmMonthly from './components/Level3pmMonthly';
 import TimeLapseMonthly from './components/TimeLapseMonthly'; // Importing the component
 import MitigationSim from './components/MitigationSim';
 import MicroplasticsNodeGraph3D from './components/MicroplasticsNodeGraph3D';
@@ -134,24 +133,6 @@ function App() {
                   <TimeLapseMonthly /> {/* Embedding the TimeLapseMonthly component */}
                 </section>
 
-                {/* Advanced AI Predictions Section */}
-                <section className="bg-blue-50 p-8 rounded-lg shadow-md">
-                  <h2 className="text-3xl font-semibold text-center text-blue-700 mb-6">
-                    Advanced AI Predictions
-                  </h2>
-                  <p className="text-lg text-gray-700 leading-relaxed text-center mb-6">
-                    Utilize our AI-driven models to predict future microplastic pollution scenarios based on various mitigation strategies. Make informed decisions to effectively combat environmental pollution.
-                  </p>
-                  <div className="flex justify-center">
-                    <a
-                      href="/ai-year-mitigation"
-                      className="inline-block bg-green-600 text-white px-6 py-3 rounded-full shadow hover:bg-green-700 transition duration-300"
-                    >
-                      Explore AI Predictions
-                    </a>
-                  </div>
-                </section>
-
                 {/* Optional Additional Sections */}
                 {/* Add more sections like Testimonials, Statistics, etc., as needed */}
               </div>
@@ -162,7 +143,6 @@ function App() {
 
           {/* Define other routes */}
           <Route path="/level3" element={<Level3Map />} />
-          <Route path="/level3pm" element={<Level3pmMonthly />} />
           <Route path="/mitigation" element={<MitigationSim />} />
           <Route path="/nodegraph3d" element={<MicroplasticsNodeGraph3D />} />
           <Route path="/aipredictions" element={<AIPredictions />} />
