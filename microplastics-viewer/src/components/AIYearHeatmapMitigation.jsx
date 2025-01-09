@@ -4,8 +4,9 @@ import Papa from "papaparse";
 import * as tf from "@tensorflow/tfjs";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import MarkerClusterGroup from "@changey/react-leaflet-markercluster";
-import "@changey/react-leaflet-markercluster/dist/styles.min.css";
+// Removed MarkerClusterGroup imports
+// import MarkerClusterGroup from "@changey/react-leaflet-markercluster";
+// import "@changey/react-leaflet-markercluster/dist/styles.min.css";
 import * as d3 from "d3-scale";
 import { interpolateYlOrRd } from "d3-scale-chromatic";
 import { ClipLoader } from "react-spinners";
@@ -660,7 +661,8 @@ function AIYearHeatmapMitigation() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               noWrap={true}
             />
-            <MarkerClusterGroup>
+            {/* Removed MarkerClusterGroup */}
+            {/* <MarkerClusterGroup> */}
               {heatmapData.map((point, i) => {
                 const lat = point.lat;
                 const lon = point.lon;
@@ -693,7 +695,7 @@ function AIYearHeatmapMitigation() {
                   </CircleMarker>
                 );
               })}
-            </MarkerClusterGroup>
+            {/* </MarkerClusterGroup> */}
           </MapContainer>
         </div>
       ) : (
