@@ -205,17 +205,12 @@ function App() {
                   >
                     <iframe
                       className="absolute top-0 left-0 w-full h-full"
-                      src="https://www.youtube.com/embed/aiEBEGKQp_I?autoplay=1&mute=1&loop=1&playlist=aiEBEGKQp_I"
+                      src="https://www.youtube.com/embed/rug4z8Iivd8?autoplay=1&mute=1&loop=1&playlist=rug4z8Iivd8"
                       title="Microplastics Overview"
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
                     ></iframe>
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                      <h2 className="text-white text-4xl md:text-6xl font-bold text-center px-4">
-                        A Deeper Dive into Microplastics Pollution
-                      </h2>
-                    </div>
                   </section>
 
                   {/* Enhanced Features Section */}
